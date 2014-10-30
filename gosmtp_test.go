@@ -7,7 +7,7 @@ import (
 )
 
 func TestMail(t *testing.T) {
-	sender := &EmailSender{ServerAddr:"172.16.1.10:25",SenderEmail:"kenit@surehigh.com.tw"}
+	sender := &EmailSender{ServerAddr:"192.168.254.2:25",SenderEmail:"kenit@surehigh.com.tw"}
 	errChan := sender.Init()
 	go func(){
 		for err := range errChan{

@@ -11,6 +11,8 @@ import(
 type EmailSender struct{
 	ServerAddr string
 	SenderEmail string
+	Username string
+	Password string
 	conn *smtp.Client
 	queue chan *Task
 }
@@ -31,6 +33,12 @@ func (e *EmailSender) run(done chan <- interface{}) error{
 		var err error
 		if e.conn, err = smtp.Dial(e.ServerAddr);err!=nil{
 			return fmt.Errorf("[EMAIL] SERVER連接錯誤，%s",err)
+		}
+		if e.Username != ""{
+			auth := smtp.PlainAuth("", e.Username, e.Password, e.ServerAddr)
+			if err := e.conn.Auth(auth);err !=nil {
+				return fmt.Errorf("[EMAIL] SERVER認證錯誤，%s",err)
+			}
 		}
 	}
 	go func(){
