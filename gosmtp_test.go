@@ -7,7 +7,7 @@ import (
 )
 
 func TestMail(t *testing.T) {
-	sender := &EmailSender{ServerAddr:"192.168.254.2:25",SenderEmail:"kenit@surehigh.com.tw"}
+	sender := &EmailSender{ServerAddr:"192.168.254.2",ServerPort:25,SenderEmail:"kenit@surehigh.com.tw"}
 	errChan := sender.Init()
 	go func(){
 		for err := range errChan{
@@ -16,19 +16,20 @@ func TestMail(t *testing.T) {
 	}()
 	content:=`<html>
 	<body>
-	這是測試信的內容
+	This is a test mail.
 	</body>
 	</html>`
-	c := sender.AddQueue(&Task{Subject:"這是一封測試信",To:[]string{"kenit@surehigh.com.tw"},Content:[]byte(content)})
-	result := <- c
-	fmt.Println(result)
+	sender.AddQueue(&Task{Subject:"This is a test mail",To:[]string{"kenit@surehigh.com.tw"},Content:[]byte(content)})
+	fmt.Println("Waiting for 20 secs.")
 	time.Sleep(20 * time.Second)
 	content=`<html>
 	<body>
-	這是測試信的內容2
+	This is a test mail2.
 	</body>
 	</html>`	
-	c = sender.AddQueue(&Task{Subject:"這是一封測試信2",To:[]string{"kenit@surehigh.com.tw"},Content:[]byte(content)})
-	result = <- c
-	fmt.Println(result)	
+	c := sender.AddQueue(&Task{Subject:"This is a test mail2",To:[]string{"kenit@surehigh.com.tw"},Content:[]byte(content)})
+	
+	for err := range c{
+		fmt.Println(err)
+	}
 }

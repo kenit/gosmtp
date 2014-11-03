@@ -8,8 +8,11 @@ import(
 	"crypto/md5"
 )
 
+const QueueSize = 100
+
 type EmailSender struct{
 	ServerAddr string
+	ServerPort int	
 	SenderEmail string
 	Username string
 	Password string
@@ -17,27 +20,26 @@ type EmailSender struct{
 	queue chan *Task
 }
 
-func (e *EmailSender) AddQueue(t *Task) <-chan string {
+func (e *EmailSender) AddQueue(t *Task) <-chan error {
 	if e.queue == nil {
-		e.queue = make(chan *Task,100)
+		e.queue = make(chan *Task,QueueSize)
 	}
-	r := make(chan string,1)
-	t.result = r
-	e.queue<-t
-	return r
+	t.err = make(chan error,1)
+	e.queue <- t
+	return t.err
 }
 
 func (e *EmailSender) run(done chan <- interface{}) error{
 	timer := time.NewTimer(10 * time.Second)
 	if e.conn == nil || e.conn.Hello("localhost")!=nil{
 		var err error
-		if e.conn, err = smtp.Dial(e.ServerAddr);err!=nil{
-			return fmt.Errorf("[EMAIL] SERVER連接錯誤，%s",err)
+		if e.conn, err = smtp.Dial(fmt.Sprintf("%s:%d",e.ServerAddr, e.ServerPort));err!=nil{
+			return fmt.Errorf("[EMAIL] SERVER Connect Failed，%s",err)
 		}
 		if e.Username != ""{
 			auth := smtp.PlainAuth("", e.Username, e.Password, e.ServerAddr)
 			if err := e.conn.Auth(auth);err !=nil {
-				return fmt.Errorf("[EMAIL] SERVER認證錯誤，%s",err)
+				return fmt.Errorf("[EMAIL] SERVER Auth failed，%s",err)
 			}
 		}
 	}
@@ -45,12 +47,14 @@ func (e *EmailSender) run(done chan <- interface{}) error{
 		loop:
 		for{
 			select{
-				case t := <-e.queue:
-					if err := e.send(t);err == nil{
-						t.result <- "Success"
-					}else{
-						t.result <- err.Error()
+				case t := <-e.queue:				
+					if err := e.send(t);err != nil{
+						select{
+							case t.err <- err:
+							case <- timer.C:
+						}
 					}
+					close(t.err)
 				case <- timer.C:
 					break loop
 			}
@@ -65,11 +69,11 @@ func (e *EmailSender) run(done chan <- interface{}) error{
 
 func (e *EmailSender) send(t *Task) error{
 	if err := e.conn.Mail(e.SenderEmail); err != nil {
-		return fmt.Errorf("[EMAIL] 無法指定寄件者，%s，%s",e.SenderEmail,err)
+		return fmt.Errorf("[EMAIL] Server can't accept sender，%s，%s",e.SenderEmail,err)
 	}
 	for _, r := range(t.To){
 		if err := e.conn.Rcpt(r);err != nil{
-			return fmt.Errorf("[EMAIL] 無法指定收件者，%s，%s",r,err)
+			return fmt.Errorf("[EMAIL] Server can't accept recipient，%s，%s",r,err)
 		}
 	}
 	if wc,err:=e.conn.Data();err == nil{
@@ -115,5 +119,5 @@ type Task struct{
 	Subject string
 	To []string
 	Content []byte
-	result chan string
+	err chan error
 }
