@@ -80,9 +80,12 @@ func (e *EmailSender) send(t *Task) error{
 		boundary := fmt.Sprintf("%x",md5.Sum(t.Content))
 		wc.Write([]byte("Subject: " + "=?UTF-8?B?" + base64.StdEncoding.EncodeToString([]byte(t.Subject)) +"?=\n"))
 		wc.Write([]byte("MIME-Version: 1.0" + "\n"))
+		wc.Write([]byte("Date: " + time.Now().Format(time.RFC1123Z) + "\n"))
+		wc.Write([]byte("From: " + e.SenderEmail + "\n"))
+		wc.Write([]byte("To: undisclosed-recipients:;\n"))
 		wc.Write([]byte("Content-Type: multipart/mixed; boundary = b" + boundary + "\n"))
 		wc.Write([]byte("This is a multi-part message in MIME format.\n\n--b" + boundary + "\n"))
-		wc.Write([]byte("Content-Type: TEXT/html;charset=uft-8\n"))
+		wc.Write([]byte("Content-Type: text/html;charset=uft-8\n"))
 		wc.Write([]byte("Content-Transfer-Encoding: base64\n\n"))
 		body := base64.StdEncoding.EncodeToString(t.Content)
 		for len(body)>76{
