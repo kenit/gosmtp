@@ -23,13 +23,14 @@ type EmailSender struct {
 	queue       chan *Task
 }
 
-func (e *EmailSender) AddQueue(t *Task) <-chan error {
+func (e *EmailSender) AddQueue(t *Task) (string, <-chan error) {
 	if e.queue == nil {
 		e.queue = make(chan *Task, QueueSize)
 	}
 	t.err = make(chan error, 1)
+	t.messageId = uuid.New()
 	e.queue <- t
-	return t.err
+	return t.messageId, t.err
 }
 
 func (e *EmailSender) run(done chan<- interface{}) error {
@@ -99,7 +100,10 @@ func (e *EmailSender) send(t *Task) error {
 	}
 	if wc, err := e.conn.Data(); err == nil {
 		boundary := fmt.Sprintf("%x", md5.Sum(t.Content))
-		wc.Write([]byte("Message-ID:<" + uuid.New() + "@hotelnabe.com.tw>\n"))
+		wc.Write([]byte("Message-ID:<" + t.messageId + "@hotelnabe.com.tw>\n"))
+		for key, value := range t.Headers{
+			wc.Write([]byte(fmt.Sprintf("%s: %s\n", key, value)))
+		}
 		wc.Write([]byte("Subject: " + "=?UTF-8?B?" + base64.StdEncoding.EncodeToString([]byte(t.Subject)) + "?=\n"))
 		wc.Write([]byte("MIME-Version: 1.0" + "\n"))
 		wc.Write([]byte("Date: " + time.Now().Format(time.RFC1123Z) + "\n"))
@@ -109,6 +113,7 @@ func (e *EmailSender) send(t *Task) error {
 		wc.Write([]byte("This is a multi-part message in MIME format.\n\n--b" + boundary + "\n"))
 		wc.Write([]byte("Content-Type: text/html;charset=UTF-8\n"))
 		wc.Write([]byte("Content-Transfer-Encoding: base64\n\n"))
+
 		body := base64.StdEncoding.EncodeToString(t.Content)
 		for len(body) > 76 {
 			wc.Write([]byte(body[0:76]))
@@ -146,5 +151,7 @@ type Task struct {
 	Subject string
 	To      []string
 	Content []byte
+	Headers map[string]string
 	err     chan error
+	messageId string
 }
